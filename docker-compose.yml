@@ -1,0 +1,89 @@
+services:
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"  # Replace with your own UUID if needed
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.5
+    container_name: keycloak
+    command: ["start-dev", "--http-port", "8080"]
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/realms/master"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+
+  registry:
+    image: apicurio/apicurio-registry:3.0.7
+    container_name: apicurio-registry
+    ports:
+      - "8081:8081"
+    environment:
+      QUARKUS_HTTP_PORT: 8081
+      # Enable legacy (Confluent) APIs - these are enabled by default in Apicurio, but keeping for clarity
+      REGISTRY_FEATURE_COMPATIBILITY: "true"
+      # --- OIDC / Keycloak integration ---
+      REGISTRY_AUTH_ENABLED: "true"
+      REGISTRY_AUTH_AUTHORIZATION_ROLES_ENABLED: "false"
+      # Point to the Keycloak realm that will issue tokens (create a realm named 'demo')
+      QUARKUS_OIDC_AUTH_SERVER_URL: http://keycloak:8080/realms/demo
+      QUARKUS_OIDC_CLIENT_ID: apicurio-registry
+      # Set this to the confidential client secret created in Keycloak for client 'apicurio-registry'
+      QUARKUS_OIDC_CREDENTIALS_SECRET: q6Zw9oOGafxxniZj1KKcKz1xsNZrbgVM
+      # Optional: map realm/client roles to Apicurio roles (uncomment and adjust as needed)
+      # REGISTRY_AUTH_ROLES_ADMIN: sr-admin
+      # REGISTRY_AUTH_ROLES_DEVELOPER: sr-write
+      # REGISTRY_AUTH_ROLES_READONLY: sr-read
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/apis/ccompat/v7/subjects"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  kafdrop:
+    image: obsidiandynamics/kafdrop:4.0.0
+    container_name: kafdrop
+    depends_on:
+      - kafka
+    ports:
+      - "9000:9000"
+    environment:
+      KAFKA_BROKERCONNECT: "kafka:29092"
+      SERVER_PORT: 9000
+      JVM_OPTS: "-Xms32M -Xmx64M"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  kafka-data:
+

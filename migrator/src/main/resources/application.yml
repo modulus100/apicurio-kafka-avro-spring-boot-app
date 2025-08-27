@@ -1,0 +1,17 @@
+app:
+  kafka:
+    topic: demo-topic
+
+spring:
+  application:
+    name: schema-migrator
+
+schema:
+  registry:
+    url: http://localhost:8081/apis/ccompat/v7
+    # OAuth2 (Keycloak) for SR client-credentials
+    bearer:
+      issuer-endpoint-url: http://localhost:8080/realms/demo/protocol/openid-connect/token
+      client-id: ${SR_OIDC_CLIENT_ID:sr-client}
+      client-secret: ${SR_OIDC_CLIENT_SECRET:gcYKrqUN9o8SrNlndrcrOs0pceQR4HIz}
+      scope: ${SR_OIDC_SCOPE:}
