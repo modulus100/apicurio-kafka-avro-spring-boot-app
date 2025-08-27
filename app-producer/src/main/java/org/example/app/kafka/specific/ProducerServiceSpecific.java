@@ -34,6 +34,7 @@ public class ProducerServiceSpecific {
     @Scheduled(fixedDelay = 5000, initialDelay = 3500)
     public void sendMessage() {
         Greeting greeting = Greeting.newBuilder()
+                .setMessage2("Hello from Spring Boot (SpecificRecord) @ " + Instant.now().toEpochMilli())
                 .setMessage("Hello from Spring Boot (SpecificRecord) @ " + Instant.now().toEpochMilli())
                 .setTimestamp(Instant.now().toEpochMilli())
                 .build();

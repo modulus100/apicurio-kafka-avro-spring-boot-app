@@ -6,6 +6,12 @@
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
       <module name="apicurio-kafka-avro-spring-boot-app.app" options="-parameters" />
+      <module name="apicurio-kafka-avro-spring-boot-app.app-consumer" options="-parameters" />
+      <module name="apicurio-kafka-avro-spring-boot-app.app-consumer.main" options="-parameters" />
+      <module name="apicurio-kafka-avro-spring-boot-app.app-consumer.test" options="-parameters" />
+      <module name="apicurio-kafka-avro-spring-boot-app.app-producer" options="-parameters" />
+      <module name="apicurio-kafka-avro-spring-boot-app.app-producer.main" options="-parameters" />
+      <module name="apicurio-kafka-avro-spring-boot-app.app-producer.test" options="-parameters" />
       <module name="apicurio-kafka-avro-spring-boot-app.app.main" options="-parameters" />
       <module name="apicurio-kafka-avro-spring-boot-app.app.test" options="-parameters" />
       <module name="apicurio-kafka-avro-spring-boot-app.migrator" options="-parameters" />

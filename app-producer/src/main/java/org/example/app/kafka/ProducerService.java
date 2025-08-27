@@ -77,25 +77,25 @@ public class ProducerService {
     }
 
     // Send a message every 5 seconds
-    @Scheduled(fixedDelay = 5000, initialDelay = 3000)
-    public void sendMessage() {
-        GenericRecord record = new GenericData.Record(greetingSchema);
-        String message = "Hello from Spring Boot (Avro)";
-        long ts = Instant.now().toEpochMilli();
-        record.put("message", message + " @ " + ts);
-        record.put("timestamp", ts);
-
-        kafkaTemplate.send(topic, record).whenComplete((result, ex) -> {
-            if (ex != null) {
-                log.error("Failed to send Avro record", ex);
-            } else if (result != null && result.getRecordMetadata() != null) {
-                log.info("Sent Avro record to {}-{}@{}", 
-                        result.getRecordMetadata().topic(),
-                        result.getRecordMetadata().partition(),
-                        result.getRecordMetadata().offset());
-            } else {
-                log.info("Sent Avro record");
-            }
-        });
-    }
+//    @Scheduled(fixedDelay = 5000, initialDelay = 3000)
+//    public void sendMessage() {
+//        GenericRecord record = new GenericData.Record(greetingSchema);
+//        String message = "Hello from Spring Boot (Avro)";
+//        long ts = Instant.now().toEpochMilli();
+//        record.put("message", message + " @ " + ts);
+//        record.put("timestamp", ts);
+//
+//        kafkaTemplate.send(topic, record).whenComplete((result, ex) -> {
+//            if (ex != null) {
+//                log.error("Failed to send Avro record", ex);
+//            } else if (result != null && result.getRecordMetadata() != null) {
+//                log.info("Sent Avro record to {}-{}@{}",
+//                        result.getRecordMetadata().topic(),
+//                        result.getRecordMetadata().partition(),
+//                        result.getRecordMetadata().offset());
+//            } else {
+//                log.info("Sent Avro record");
+//            }
+//        });
+//    }
 }

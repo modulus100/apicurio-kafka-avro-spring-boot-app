@@ -25,6 +25,7 @@ configurations {
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter")
+    implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.kafka:spring-kafka")
 
     // Confluent serializer for Avro (works with Apicurio ccompat API)
@@ -71,11 +72,11 @@ tasks.test {
 
 // Ensure Spring Boot uses the correct main class
 springBoot {
-    mainClass.set("org.example.app.Application")
+    mainClass.set("org.example.app.ProducerApp")
 }
 
 tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
-    mainClass.set("org.example.app.Application")
+    mainClass.set("org.example.app.ProducerApp")
 }
 
 // Ensure code generation happens before Java compilation

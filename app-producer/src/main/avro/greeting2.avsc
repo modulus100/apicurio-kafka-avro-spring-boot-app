@@ -1,0 +1,10 @@
+{
+  "type": "record",
+  "name": "Greeting",
+  "namespace": "org.example.avro",
+  "fields": [
+    {"name": "message2", "type": ["null", "string"], "default": "hello world"},
+    { "name": "message", "type": "string" },
+    { "name": "timestamp", "type": "long" }
+  ]
+}

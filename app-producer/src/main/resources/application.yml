@@ -1,0 +1,38 @@
+server:
+  port: 8082
+
+app:
+  kafka:
+    topic: demo-topic
+  examples:
+    generic:
+      enabled: false
+    specific:
+      enabled: true
+
+spring:
+  application:
+    name: app-producer
+  kafka:
+    bootstrap-servers: localhost:9092
+    properties:
+      schema.registry.url: http://localhost:8081/apis/ccompat/v7
+      auto.register.schemas: false
+      use.latest.version: false
+      # --- OAuth2 for Schema Registry (Keycloak) ---
+      # Confluent SR client will obtain tokens via client-credentials from Keycloak
+      bearer.auth.credentials.source: OAUTHBEARER
+      bearer.auth.issuer.endpoint.url: http://localhost:8080/realms/demo/protocol/openid-connect/token
+      bearer.auth.client.id: ${SR_OIDC_CLIENT_ID:sr-client}
+      bearer.auth.client.secret: ${SR_OIDC_CLIENT_SECRET:gcYKrqUN9o8SrNlndrcrOs0pceQR4HIz}
+      # Optional scope; often not required for client-credentials in Keycloak
+      bearer.auth.scope: ${SR_OIDC_SCOPE:}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+#    listener:
+#      missing-topics-fatal: false
+    admin:
+      # allow auto creation of topics via AdminClient
+      auto-create: true
+      fail-fast: true

@@ -43,23 +43,24 @@ public class ConsumerListenerSpecific {
     @Value("${spring.kafka.properties.bearer.auth.scope:}")
     private String scope;
 
-    @KafkaListener(topics = "${app.kafka.topic:demo-topic}", groupId = "${spring.kafka.consumer.group-id:demo-group}", containerFactory = "specificKafkaListenerContainerFactory")
+    @KafkaListener(topics = "${app.kafka.topic:demo-topic}", groupId = "${spring.kafka.consumer.group-id:demo-group}")
     public void listen(ConsumerRecord<String, Greeting> record) {
         Greeting value = record.value();
         Headers headers = record.headers();
         String ceId = header(headers, "ce-id");
         String ceSource = header(headers, "ce-source");
-        Integer schemaId = null;
+
+//        Integer schemaId = null;
         if (value != null) {
             try {
-                schemaId = resolveSchemaId(topic + "-value", value.getSchema());
+//                schemaId = resolveSchemaId(topic + "-value", value.getSchema());
             } catch (Exception e) {
                 log.warn("[Specific] Failed to resolve schema ID: {}", e.toString());
             }
         }
         if (value != null) {
             log.info("[Specific] Received: message='{}', timestamp='{}', schemaId='{}', ce-id='{}', ce-source='{}' from {}-{}@{}",
-                    value.getMessage(), value.getTimestamp(), schemaId, ceId, ceSource,
+                    value.getMessage(), value.getTimestamp(), "none", ceId, ceSource,
                     record.topic(), record.partition(), record.offset());
         } else {
             log.warn("[Specific] Received null record from {}-{}@{}", record.topic(), record.partition(), record.offset());

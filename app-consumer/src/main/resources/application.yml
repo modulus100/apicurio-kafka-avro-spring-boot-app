@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: 8083
 
 app:
   kafka:
@@ -12,13 +12,12 @@ app:
 
 spring:
   application:
-    name: spring-boot-kafka-app
+    name: app-consumer
   kafka:
     bootstrap-servers: localhost:9092
     properties:
       schema.registry.url: http://localhost:8081/apis/ccompat/v7
       auto.register.schemas: false
-      use.latest.version: false
       value.subject.name.strategy: io.confluent.kafka.serializers.subject.TopicNameStrategy
       # --- OAuth2 for Schema Registry (Keycloak) ---
       # Confluent SR client will obtain tokens via client-credentials from Keycloak
@@ -34,14 +33,10 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: io.confluent.kafka.serializers.KafkaAvroDeserializer
       properties:
-        specific.avro.reader: false
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+        specific.avro.reader: true
     listener:
       missing-topics-fatal: false
     admin:
       # allow auto creation of topics via AdminClient
       auto-create: true
       fail-fast: true
-

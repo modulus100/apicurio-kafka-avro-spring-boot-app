@@ -7,10 +7,13 @@ import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientExcept
 import org.apache.avro.Schema;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -47,24 +50,37 @@ public class MigrationService {
         }
 
         try (var client = new CachedSchemaRegistryClient(schemaRegistryUrl, 16, configs)) {
-            // Load AVSC from resources
-            ClassPathResource cpr = new ClassPathResource("avro/greeting.avsc");
-            try (InputStream is = cpr.getInputStream()) {
-                String avsc = new String(is.readAllBytes(), StandardCharsets.UTF_8);
-                Schema avroSchema = new Schema.Parser().parse(avsc);
-                AvroSchema confluentAvroSchema = new AvroSchema(avroSchema);
+            // Scan and load all AVSC files from classpath avro/ directory
+            PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+            Resource[] resources = resolver.getResources("classpath*:/avro/*.avsc");
 
-                String subject = topic + "-value"; // matches TopicNameStrategy default
+            if (resources == null || resources.length == 0) {
+                System.out.println("No AVSC schemas found under classpath:/avro. Nothing to register.");
+                return;
+            }
 
-                // Try get existing ID; if not found, register
-                int id;
-                try {
-                    id = client.getId(subject, confluentAvroSchema);
-                    System.out.println("Schema already exists for subject=" + subject + ", id=" + id);
-                } catch (RestClientException rce) {
-                    // 404 or similar -> register
-                    id = client.register(subject, confluentAvroSchema);
-                    System.out.println("Schema registered subject=" + subject + ", id=" + id);
+            System.out.println("Found " + resources.length + " AVSC schema(s). Registering against subject '" + (topic + "-value") + "'.");
+
+            for (Resource res : resources) {
+                String filename = res.getFilename();
+                try (InputStream is = res.getInputStream()) {
+                    String avsc = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+                    Schema avroSchema = new Schema.Parser().parse(avsc);
+                    AvroSchema confluentAvroSchema = new AvroSchema(avroSchema);
+
+                    String subject = topic + "-value"; // matches TopicNameStrategy default
+
+                    // Try get existing ID; if not found, register
+                    int id;
+                    try {
+                        id = client.getId(subject, confluentAvroSchema);
+                        System.out.println("[" + filename + "] Schema already exists for subject=" + subject + ", id=" + id);
+                    } catch (RestClientException rce) {
+                        id = client.register(subject, confluentAvroSchema);
+                        System.out.println("[" + filename + "] Schema registered subject=" + subject + ", id=" + id);
+                    }
+                } catch (Exception e) {
+                    System.err.println("Failed to register schema from resource '" + filename + "': " + e.getMessage());
                 }
             }
         }

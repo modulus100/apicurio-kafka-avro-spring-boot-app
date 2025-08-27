@@ -17,4 +17,4 @@ plugins {
 }
 
 rootProject.name = "apicurio-kafka-avro-spring-boot-app"
-include("app", "migrator")
+include("app-producer", "app-consumer", "migrator")
