@@ -1,10 +1,12 @@
-# Spring Boot + Kafka + Apicurio + Avro + CloudEvents (Azure Entra ID) — Developer Guide
+# Spring Boot + Kafka + Apicurio + Avro + CloudEvents — Developer Guide
 
 This is a demonstration project showing how Apicurio can be used with Kafka, Confluent, Avro, and a Spring Boot service.
 
-This repository demonstrates producing and consuming Avro messages with Spring Boot and Confluent serializers against Apicurio Registry (ccompat API), with OAuth2 protected Schema Registry using Azure Entra ID (formerly Azure AD). It also shows CloudEvents integration and Avro-to-Java code generation.
+This repository demonstrates producing and consuming Avro messages with Spring Boot and Confluent serializers against Apicurio Registry (ccompat API), with an OAuth2-protected Schema Registry. It also shows CloudEvents integration and Avro-to-Java code generation.
 
 Kafka runs unauthenticated (PLAINTEXT) for local development; only Apicurio Schema Registry is secured.
+
+> Authentication provider: For local development, use Keycloak (documented below). Azure Entra ID guidance will be provided in a separate document.
 
 ## Modules and key files
 
@@ -33,50 +35,55 @@ Kafka runs unauthenticated (PLAINTEXT) for local development; only Apicurio Sche
 - Gradle Wrapper (provided): `./gradlew`
 - Azure tenant with permissions to create App registrations
 
-## Azure Entra ID setup (replace any Keycloak references)
+## Identity and clients
 
-You will create two App registrations in Azure Entra ID:
+### Keycloak (local development)
 
-1) Apicurio Registry app (resource server)
-- App registration (Web)
-- Expose an API: Application ID URI like `api://<APICURIO_APP_ID>`
-- Create a client secret; note the values
+If you prefer Keycloak locally, you can use the included `keycloak` service in `docker-compose.yml`.
 
-2) SR client app (producer/consumer/migrator)
-- App registration (confidential client)
-- Create a client secret; note the values
-- API permissions: add application permission to the Apicurio API you exposed above (or use default if none). Admin-consent as needed.
+1) Start Keycloak and Kafka, then open `http://localhost:8080` (admin/admin by default in compose):
 
-Important URLs and values (replace placeholders):
-- Tenant ID: `<TENANT_ID>`
-- Token endpoint (v2): `https://login.microsoftonline.com/<TENANT_ID>/oauth2/v2.0/token`
-- Issuer/authority (OIDC discovery): `https://login.microsoftonline.com/<TENANT_ID>/v2.0`
-- OAuth2 scope for client credentials: `api://<APICURIO_APP_ID>/.default`
+```bash
+docker compose up -d keycloak kafka
+```
 
-### Configure Apicurio to trust Azure Entra ID
+2) In Keycloak:
+- Create realm: `demo`
+- Create confidential client: `apicurio-registry` (Client authentication ON)
+- Create confidential client: `sr-client` (Client authentication ON)
+- For `apicurio-registry`, create a client secret and note it
+- For `sr-client`, create a client secret and note it
 
-Set these environment variables for the `registry` container (for example via `docker-compose.yml` overrides or an `.env` file):
+3) Configure Apicurio Registry to use Keycloak (set env in `registry`):
 
 ```
 REGISTRY_AUTH_ENABLED=true
 REGISTRY_AUTH_AUTHORIZATION_ROLES_ENABLED=false
-QUARKUS_OIDC_AUTH_SERVER_URL=https://login.microsoftonline.com/<TENANT_ID>/v2.0
-QUARKUS_OIDC_CLIENT_ID=<APICURIO_APP_CLIENT_ID>
-QUARKUS_OIDC_CREDENTIALS_SECRET=<APICURIO_APP_CLIENT_SECRET>
+QUARKUS_OIDC_AUTH_SERVER_URL=http://keycloak:8080/realms/demo
+QUARKUS_OIDC_CLIENT_ID=apicurio-registry
+QUARKUS_OIDC_CREDENTIALS_SECRET=<KEYCLOAK_APICURIO_CLIENT_SECRET>
 ```
 
-Notes:
-- `REGISTRY_AUTH_AUTHORIZATION_ROLES_ENABLED=false` is convenient for local dev. Enable and map roles later if needed.
-- The Apicurio image already exposes Confluent-compatible (ccompat) endpoints at `/apis/ccompat/v7`.
-
-### Configure apps (Confluent SR client) to obtain tokens from Azure
-
-Both `app-producer` and `app-consumer` use Confluent SR client bearer token support. Set the following environment variables before running apps or the migrator:
+4) Configure apps to use Keycloak token endpoint:
 
 ```
-export SR_OIDC_CLIENT_ID='<SR_CLIENT_APP_ID>'
-export SR_OIDC_CLIENT_SECRET='<SR_CLIENT_SECRET>'
-export SR_OIDC_SCOPE='api://<APICURIO_APP_ID>/.default'
+export SR_OIDC_CLIENT_ID=sr-client
+export SR_OIDC_CLIENT_SECRET=<KEYCLOAK_SR_CLIENT_SECRET>
+export SR_OIDC_SCOPE=""    # often empty for client credentials in Keycloak
+```
+
+And set in `application.yml` (or via env):
+
+```
+spring.kafka.properties.bearer.auth.issuer.endpoint.url: http://localhost:8080/realms/demo/protocol/openid-connect/token
+```
+
+Both `app-producer` and `app-consumer` use Confluent SR client bearer token support. For local development with Keycloak, set:
+
+```
+export SR_OIDC_CLIENT_ID=sr-client
+export SR_OIDC_CLIENT_SECRET=<KEYCLOAK_SR_CLIENT_SECRET>
+export SR_OIDC_SCOPE=""    # often empty for client credentials in Keycloak
 ```
 
 In the apps, the relevant properties are in:
@@ -90,13 +97,13 @@ spring.kafka.properties:
   schema.registry.url: http://localhost:8081/apis/ccompat/v7
   auto.register.schemas: false
   bearer.auth.credentials.source: OAUTHBEARER
-  bearer.auth.issuer.endpoint.url: https://login.microsoftonline.com/<TENANT_ID>/oauth2/v2.0/token
+  bearer.auth.issuer.endpoint.url: http://localhost:8080/realms/demo/protocol/openid-connect/token
   bearer.auth.client.id: ${SR_OIDC_CLIENT_ID}
   bearer.auth.client.secret: ${SR_OIDC_CLIENT_SECRET}
   bearer.auth.scope: ${SR_OIDC_SCOPE}
 ```
 
-Important: the current `application.yml` files in `app-producer/` and `app-consumer/` point to a Keycloak token URL by default. Replace the value of `bearer.auth.issuer.endpoint.url` with the Azure token endpoint shown above.
+Note: Azure Entra ID based configuration will be documented separately.
 
 ## Avro schemas and code generation
 
@@ -131,22 +138,22 @@ See examples in code:
 1) Start Kafka and Apicurio Registry
 
 ```bash
-# Start only the needed services (ignore Keycloak)
-docker compose up -d kafka registry
+# Start required services (add keycloak if you use it)
+docker compose up -d kafka registry kafdrop
 ```
 
-Ensure `registry` is configured with the Azure variables shown earlier. After startup:
+After startup, verify the registry is up:
 
 ```bash
 curl -f http://localhost:8081/apis/ccompat/v7/subjects || echo "Registry not ready yet"
 ```
 
-2) Export Azure SR client credentials (for apps and migrator)
+2) Export SR client credentials (for apps and migrator)
 
 ```bash
-export SR_OIDC_CLIENT_ID='<SR_CLIENT_APP_ID>'
-export SR_OIDC_CLIENT_SECRET='<SR_CLIENT_SECRET>'
-export SR_OIDC_SCOPE='api://<APICURIO_APP_ID>/.default'
+export SR_OIDC_CLIENT_ID=sr-client
+export SR_OIDC_CLIENT_SECRET=<KEYCLOAK_SR_CLIENT_SECRET>
+export SR_OIDC_SCOPE=""
 ```
 
 3) Register the Avro schema (migrator)
@@ -168,6 +175,15 @@ Expected output includes either:
 ./gradlew :app-producer:bootRun
 ```
 
+5) Inspect with Kafdrop
+
+Kafdrop UI runs at `http://localhost:9000`.
+
+- Browse topics (e.g., `demo-topic` configured in `app.*.application.yml`)
+- View partitions, consumer groups, and lag
+- View messages: Avro payloads are binary; you’ll see bytes. Headers will show CloudEvents attributes in binary mode (e.g., `ce_type`, `ce_id`, `ce_source`).
+- Create topics if needed (auto-create is also enabled via Spring `admin.auto-create: true`).
+
 ## Configuration highlights
 
 - Schema Registry URL (ccompat): `http://localhost:8081/apis/ccompat/v7`
@@ -178,13 +194,13 @@ Expected output includes either:
 ## Troubleshooting
 
 - 401/403 from Apicurio
-  - Verify Azure OIDC variables on the `registry` container
-  - Check tenant ID and token/issuer URLs
+  - Verify OIDC variables on the `registry` container
+  - Check token/issuer URL matches your provider (Keycloak realm URL for local)
   - For local dev set `REGISTRY_AUTH_AUTHORIZATION_ROLES_ENABLED=false`
 
 - Token errors (invalid_client / invalid_scope)
-  - Ensure the SR app has a client secret and uses the v2 token endpoint
-  - Use `scope=api://<APICURIO_APP_ID>/.default` for client credentials
+  - Ensure the SR client is confidential and has a valid client secret
+  - For Keycloak, `scope` may be blank; ensure the token URL matches the realm
 
 - Subject mismatch
   - Subject is `demo-topic-value` by default. If you change the subject name strategy, align the migrator and apps accordingly.
@@ -199,4 +215,4 @@ Expected output includes either:
 ## Notes
 
 - Kafka is left open (PLAINTEXT) for simplicity. Secure Kafka separately if needed.
-- Azure Entra ID fully replaces any Keycloak references in this guide. The compose file contains a `keycloak` service for legacy scenarios—ignore it when using Azure.
+-- The compose file contains a `keycloak` service for local development. An Azure Entra ID guide will be provided separately.
