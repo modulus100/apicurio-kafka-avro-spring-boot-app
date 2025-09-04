@@ -1,0 +1,19 @@
+# YAML-driven Kafka topic to schema-directory mappings
+# This file is imported by application.yml via spring.config.import
+#
+# Each mapping entry supports:
+# - name: Kafka topic name
+# - directory: either a classpath: location (within resources) or a filesystem path
+#
+# Examples below:
+
+schema:
+  topics:
+    - name: demo-topic
+      # Uses env var KAFKA_TOPICS_ROOT with a default of classpath:avro/kafka-topic
+      # Example values:
+      #   KAFKA_TOPICS_ROOT=classpath:avro/kafka-topic
+      #   KAFKA_TOPICS_ROOT=/absolute/or/relative/path
+      directory: ${KAFKA_TOPICS_ROOT:classpath:avro/kafka-topic}/demo-topic
+    # - name: another-topic
+    #   directory: ${KAFKA_TOPICS_ROOT:classpath:avro/kafka-topic}/another-topic

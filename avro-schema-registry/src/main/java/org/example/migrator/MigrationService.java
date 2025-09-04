@@ -10,18 +10,24 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Service;
+
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 public class MigrationService {
 
     private static final Logger logger = LoggerFactory.getLogger(MigrationService.class);
+    private static final String SUBJECT_SUFFIX = "-value";
 
-    @Value("${app.kafka.topics:}")
-    private String topics;
+    private static final String STRATEGY_TOPIC_NAME = "TopicNameStrategy";
+    private static final String STRATEGY_TOPIC_RECORD_NAME = "TopicRecordNameStrategy";
+    private static final String STRATEGY_RECORD_NAME = "RecordNameStrategy";
 
     @Value("${schema.registry.url}")
     private String schemaRegistryUrl;
@@ -41,29 +47,73 @@ public class MigrationService {
     @Value("${schema.registry.bearer.scope:}")
     private String scope;
 
-    @Value("${schema.io.registerRoot:classpath:avro/kafka-topic}")
-    private String registerRoot;
+    @Value("${schema.subject.strategy:TopicRecordNameStrategy}")
+    private String subjectStrategy;
+
+    private final TopicsConfig topicsConfig;
+
+    public MigrationService(TopicsConfig topicsConfig) {
+        this.topicsConfig = topicsConfig;
+    }
 
     public void registerSchema() throws Exception {
-        List<String> topicList = resolveTopics();
-        if (topicList.isEmpty()) {
-            logger.warn("No topics configured or discovered. Set 'app.kafka.topics' or ensure schemas exist under '{}'.", registerRoot);
+        SchemaRegistryClient client = createSchemaRegistryClient();
+        // 1) If YAML mapping exists, honor it
+        if (topicsConfig != null && topicsConfig.topics() != null && !topicsConfig.topics().isEmpty()) {
+            registerFromMappings(client, topicsConfig);
             return;
         }
 
-        SchemaRegistryClient client = createSchemaRegistryClient();
-        for (String topic : topicList) {
-            registerSchemasFromClasspath(client, topic);
+        // Config-only mode: no fallback discovery
+        logger.error("No topics configured. Provide schema.topics mapping in kafka-topic-config.yml (imported via spring.config.import).");
+    }
+
+    private void registerFromMappings(SchemaRegistryClient client, TopicsConfig mappings) throws Exception {
+        for (TopicsConfig.Topic t : mappings.topics()) {
+            if (t.name() == null || t.name().isBlank() || t.directory() == null || t.directory().isBlank()) {
+                logger.warn("Skipping invalid topic mapping entry: name='{}', directory='{}'", t.name(), t.directory());
+                continue;
+            }
+            String topicName = t.name().trim();
+            String dir = t.directory().trim();
+
+            if (dir.startsWith("classpath:")) {
+                String root = dir.substring("classpath:".length());
+                PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+                String pattern = "classpath*:" + root + "/*.avsc";
+                Resource[] resources = resolver.getResources(pattern);
+                if (resources.length == 0) {
+                    logger.warn("[{}] No AVSC resources found for pattern '{}'. Skipping.", topicName, pattern);
+                    continue;
+                }
+                registerSchemas(client, topicName, Arrays.asList(resources), src -> readResource((Resource) src));
+            } else {
+                Path topicDir = Paths.get(dir);
+                if (!Files.exists(topicDir)) {
+                    logger.warn("[{}] Directory '{}' not found. Skipping.", topicName, topicDir.toAbsolutePath());
+                    continue;
+                }
+                try (Stream<Path> pathStream = Files.list(topicDir)) {
+                    List<Path> avscFiles = pathStream
+                            .filter(Files::isRegularFile)
+                            .filter(p -> p.toString().endsWith(".avsc"))
+                            .toList();
+                    if (avscFiles.isEmpty()) {
+                        logger.warn("[{}] No AVSC files found in '{}'. Skipping.", topicName, topicDir.toAbsolutePath());
+                        continue;
+                    }
+                    registerSchemas(client, topicName, avscFiles, p -> Files.readString((Path) p, StandardCharsets.UTF_8));
+                }
+            }
         }
     }
 
     private SchemaRegistryClient createSchemaRegistryClient() {
         Map<String, Object> configs = new HashMap<>();
-        configs.put("bearer.auth.credentials.source", "OAUTHBEARER");
         configs.put("bearer.auth.issuer.endpoint.url", issuerEndpointUrl);
         configs.put("bearer.auth.client.id", clientId);
         configs.put("bearer.auth.client.secret", clientSecret);
-        if (!scope.isBlank()) {
+        if (scope != null && !scope.isBlank()) {
             configs.put("bearer.auth-scope", scope);
         }
 
@@ -75,77 +125,57 @@ public class MigrationService {
         );
     }
 
-    private void registerSchemasFromClasspath(SchemaRegistryClient client, String topic) throws Exception {
-        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
-        String root = registerRoot.substring("classpath:".length());
-        String pattern = String.format("classpath*:%s/%s/*.avsc", root, topic);
-        Resource[] resources = resolver.getResources(pattern);
-
-        if (resources.length == 0) {
-            logger.warn("[{}] No AVSC files found for pattern '{}'.", topic, pattern);
-            return;
-        }
-
-        for (Resource resource : resources) {
-            String fileName = resource.getFilename() != null ? resource.getFilename() : "unknown";
-            try {
-                String avsc = readResource(resource);
-                Schema avroSchema = new Schema.Parser().parse(avsc);
-                AvroSchema confluentAvroSchema = new AvroSchema(avroSchema);
-                String subject = topic + "-" + avroSchema.getFullName(); // TopicRecordNameStrategy
-
-                try {
-                    int id = client.getId(subject, confluentAvroSchema);
-                    logger.info("[{}] Schema already exists for subject={}, id={}", topic, subject, id);
-                } catch (Exception e) {
-                    int id = client.register(subject, confluentAvroSchema);
-                    logger.info("[{}] Schema registered for subject={}, id={}", topic, subject, id);
-                }
-            } catch (Exception e) {
-                logger.error("[{}] Failed to register schema '{}': {}", topic, fileName, e.getMessage());
-            }
-        }
-    }
-
     private String readResource(Resource resource) throws Exception {
         try (InputStream is = resource.getInputStream()) {
             return new String(is.readAllBytes(), StandardCharsets.UTF_8);
         }
     }
 
-    private List<String> resolveTopics() throws Exception {
-        // Check for explicitly configured topics
-        if (!topics.isBlank()) {
-            return Arrays.stream(topics.split(","))
-                    .map(String::trim)
-                    .filter(t -> !t.isEmpty())
-                    .sorted()
-                    .collect(Collectors.toList());
-        }
+    private void registerSchemas(SchemaRegistryClient client,
+                                 String topicName,
+                                 List<?> sources,
+                                 ContentReader reader) throws Exception {
+        for (Object src : sources) {
+            String name = getSourceName(src);
+            try {
+                String avsc = reader.read(src);
+                Schema avroSchema = new Schema.Parser().parse(avsc);
+                AvroSchema confluentAvroSchema = new AvroSchema(avroSchema);
+                String subject = computeSubject(topicName, avroSchema);
 
-        // Auto-discover topics from classpath
-        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
-        String root = registerRoot.substring("classpath:".length());
-        Resource[] resources = resolver.getResources("classpath*:" + root + "/*/*.avsc");
-        return Arrays.stream(resources)
-                .map(this::parentDirName)
-                .filter(Objects::nonNull)
-                .distinct()
-                .sorted()
-                .collect(Collectors.toList());
+                try {
+                    int id = client.getId(subject, confluentAvroSchema);
+                    logger.info("[{}] Schema already exists for subject={}, id={}", topicName, subject, id);
+                } catch (Exception e) {
+                    int id = client.register(subject, confluentAvroSchema);
+                    logger.info("[{}] Schema registered for subject={}, id={}", topicName, subject, id);
+                }
+            } catch (Exception e) {
+                logger.error("[{}] Failed to register schema '{}': {}", topicName, name, e.getMessage());
+            }
+        }
     }
 
-    private String parentDirName(Resource res) {
-        try {
-            String url = res.getURL().toString();
-            int slash = url.lastIndexOf('/');
-            if (slash < 0) return null;
-            String parentPath = url.substring(0, slash);
-            int parentSlash = parentPath.lastIndexOf('/');
-            if (parentSlash < 0) return null;
-            return parentPath.substring(parentSlash + 1);
-        } catch (Exception e) {
-            return null;
+    private String computeSubject(String topicName, Schema avroSchema) {
+        return switch (subjectStrategy) {
+            case STRATEGY_TOPIC_NAME -> topicName + SUBJECT_SUFFIX;
+            case STRATEGY_RECORD_NAME -> avroSchema.getFullName();
+            case STRATEGY_TOPIC_RECORD_NAME -> topicName + "-" + avroSchema.getFullName();
+            default -> topicName + "-" + avroSchema.getFullName();
+        };
+    }
+
+    private String getSourceName(Object source) {
+        if (source instanceof Path path) {
+            return path.getFileName().toString();
+        } else if (source instanceof Resource resource) {
+            return resource.getFilename() != null ? resource.getFilename() : resource.getDescription();
         }
+        return "unknown";
+    }
+
+    @FunctionalInterface
+    private interface ContentReader {
+        String read(Object source) throws Exception;
     }
 }

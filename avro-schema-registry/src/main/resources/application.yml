@@ -1,8 +1,10 @@
 app:
   kafka:
-    topics: demo-topic
+    topic:
 
 spring:
+  config:
+    import: "classpath:kafka-topic-config.yml"
   application:
     name: schema-migrator
 
