@@ -1,6 +1,6 @@
 app:
   kafka:
-    topic: demo-topic
+    topics: demo-topic
 
 spring:
   application:
@@ -9,9 +9,14 @@ spring:
 schema:
   registry:
     url: http://localhost:8081/apis/ccompat/v7
+    group: my-group
     # OAuth2 (Keycloak) for SR client-credentials
     bearer:
       issuer-endpoint-url: http://localhost:8080/realms/demo/protocol/openid-connect/token
       client-id: ${SR_OIDC_CLIENT_ID:sr-client}
       client-secret: ${SR_OIDC_CLIENT_SECRET:gcYKrqUN9o8SrNlndrcrOs0pceQR4HIz}
       scope: ${SR_OIDC_SCOPE:}
+  io:
+    registerRoot: ${AVRO_KAFKA_TOPIC_ROOT:classpath:avro/kafka-topic}
+  subject:
+    strategy: TopicRecordNameStrategy

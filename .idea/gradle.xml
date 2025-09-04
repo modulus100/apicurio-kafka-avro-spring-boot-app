@@ -22,8 +22,8 @@
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/app-consumer" />
             <option value="$PROJECT_DIR$/app-producer" />
+            <option value="$PROJECT_DIR$/avro-schema-registry" />
             <option value="$PROJECT_DIR$/build-logic" />
-            <option value="$PROJECT_DIR$/migrator" />
           </set>
         </option>
       </GradleProjectSettings>

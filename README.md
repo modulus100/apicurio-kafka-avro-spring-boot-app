@@ -21,7 +21,7 @@ Kafka runs unauthenticated (PLAINTEXT) for local development; only Apicurio Sche
   - Config: `app-consumer/src/main/resources/application.yml`
   - Main class: `org.example.app.ConsumerApp`
 
-- `migrator/`
+- `avro-schema-registry/`
   - One-shot Spring Boot job to pre-register Avro schemas in Apicurio
   - Main class: `org.example.migrator.MigratorApplication`
 
@@ -156,12 +156,12 @@ export SR_OIDC_CLIENT_SECRET=<KEYCLOAK_SR_CLIENT_SECRET>
 export SR_OIDC_SCOPE=""
 ```
 
-3) Register the Avro schema (migrator)
+3) Register the Avro schema (avro-schema-registry)
 
 ```bash
-./gradlew :migrator:bootRun
+./gradlew :avro-schema-registry:bootRun
 # or
-./gradlew :migrator:bootJar && java -jar migrator/build/libs/migrator-*.jar
+./gradlew :avro-schema-registry:bootJar && java -jar avro-schema-registry/build/libs/avro-schema-registry-*.jar
 ```
 
 Expected output includes either:
@@ -209,7 +209,7 @@ Kafdrop UI runs at `http://localhost:9000`.
 
 - `app-producer/` Spring Boot producer (Avro + CloudEvents)
 - `app-consumer/` Spring Boot consumer (Avro SpecificRecord)
-- `migrator/` One-shot schema registration job
+- `avro-schema-registry/` One-shot schema registration job
 - `docker-compose.yml` Local infra
 
 ## Notes

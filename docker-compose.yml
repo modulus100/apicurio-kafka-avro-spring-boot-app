@@ -61,6 +61,8 @@ services:
       # REGISTRY_AUTH_ROLES_ADMIN: sr-admin
       # REGISTRY_AUTH_ROLES_DEVELOPER: sr-write
       # REGISTRY_AUTH_ROLES_READONLY: sr-read
+      QUARKUS_HTTP_ACCESS_LOG_ENABLED: "true"
+      QUARKUS_HTTP_ACCESS_LOG_PATTERN: '%h %l %u %t "%r" %s %b "%{i,X-Registry-GroupId}"'
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/apis/ccompat/v7/subjects"]
       interval: 10s

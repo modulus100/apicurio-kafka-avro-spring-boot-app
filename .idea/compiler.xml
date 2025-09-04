@@ -14,6 +14,9 @@
       <module name="apicurio-kafka-avro-spring-boot-app.app-producer.test" options="-parameters" />
       <module name="apicurio-kafka-avro-spring-boot-app.app.main" options="-parameters" />
       <module name="apicurio-kafka-avro-spring-boot-app.app.test" options="-parameters" />
+      <module name="apicurio-kafka-avro-spring-boot-app.avro-schema-registry" options="-parameters" />
+      <module name="apicurio-kafka-avro-spring-boot-app.avro-schema-registry.main" options="-parameters" />
+      <module name="apicurio-kafka-avro-spring-boot-app.avro-schema-registry.test" options="-parameters" />
       <module name="apicurio-kafka-avro-spring-boot-app.migrator" options="-parameters" />
       <module name="apicurio-kafka-avro-spring-boot-app.migrator.main" options="-parameters" />
       <module name="apicurio-kafka-avro-spring-boot-app.migrator.test" options="-parameters" />

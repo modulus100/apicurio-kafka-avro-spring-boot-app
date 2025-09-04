@@ -36,12 +36,12 @@ Notes:
 
 ## Local development registration
 
-For local workflows while the pipeline is being finalized, you can pre-register schemas using the `migrator/` module:
+For local workflows while the pipeline is being finalized, you can pre-register schemas using the `avro-schema-registry/` module:
 
 ```bash
-./gradlew :migrator:bootRun
+./gradlew :avro-schema-registry:bootRun
 # or
-./gradlew :migrator:bootJar && java -jar migrator/build/libs/migrator-*.jar
+./gradlew :avro-schema-registry:bootJar && java -jar avro-schema-registry/build/libs/avro-schema-registry-*.jar
 ```
 
 Expected output will indicate whether the subject already existed or was registered.

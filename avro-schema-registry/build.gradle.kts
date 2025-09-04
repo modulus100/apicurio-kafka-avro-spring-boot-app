@@ -27,3 +27,4 @@ tasks.test {
 springBoot {
     mainClass.set("org.example.migrator.MigratorApplication")
 }
+

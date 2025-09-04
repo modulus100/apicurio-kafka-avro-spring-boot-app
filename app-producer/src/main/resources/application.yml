@@ -30,6 +30,9 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+      properties:
+        request.header.X-Registry-GroupId: my-group
+        value.subject.name.strategy: io.confluent.kafka.serializers.subject.TopicRecordNameStrategy
 #    listener:
 #      missing-topics-fatal: false
     admin:
